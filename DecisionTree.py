@@ -1,25 +1,38 @@
+# Commented out IPython magic to ensure Python compatibility.
 import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import random
+import pydotplus
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import export_graphviz
+from sklearn.metrics import classification_report
+from sklearn.model_selection import train_test_split
+from IPython.display import Image  
 from matplotlib import pyplot as plt
 from pprint import pprint
+from six import StringIO
+from sklearn import metrics
+from sklearn import preprocessing
+from statistics import mode
 
-################### Train and Test Data ####################
-def train_test_split(df, test_size):
+"""# Train and Test data"""
+
+def Split_train_test(dataFrame, test_size):
     if isinstance(test_size, float):
-        test_size = round(test_size * len(df))
+        test_size = round(test_size * len(dataFrame))
 
-    indices = df.index.tolist()
+    indices = dataFrame.index.tolist()
     test_indices = random.sample(population=indices, k=test_size)
 
-    test_df = df.loc[test_indices]
-    train_df = df.drop(test_indices)
-    return train_df, test_df
+    test_dataFrame = dataFrame.loc[test_indices]
+    train_dataFrame = dataFrame.drop(test_indices)
+    return train_dataFrame, test_dataFrame
 
-################## Purity ###################
-def check_purity(data):
+"""# Data purity"""
+
+def Purity(data):
     label_column = data[:, -1]
     unique_classes = np.unique(label_column)
     if len(unique_classes) == 1:
@@ -27,9 +40,9 @@ def check_purity(data):
     else:
         return False
 
+"""# Classification"""
 
-################### Classification ###################
-def classify_data(data):
+def Classify(data):
     label_column = data[:, -1]
     unique_classes, counts_unique_classes = np.unique(label_column, return_counts=True)
 
@@ -38,12 +51,12 @@ def classify_data(data):
     
     return classification
 
-################### Potential Splits ###################
-def get_potential_splits(data):
-    
+"""# Potential Splits"""
+
+def Potential_splits(data):
     potential_splits = {}
     _, n_columns = data.shape
-    for column_index in range(n_columns - 1):          # excluding the last column which is the label
+    for column_index in range(n_columns - 1):  #The last column which is the label
         values = data[:, column_index]
         unique_values = np.unique(values)
         
@@ -51,25 +64,27 @@ def get_potential_splits(data):
     
     return potential_splits
 
-################### Split Data ##################
-def split_data(data, split_column, split_value):
-    
+"""# Split Data"""
+
+def Split(data, split_column, split_value):
     split_column_values = data[:, split_column]
 
     type_of_feature = FEATURE_TYPES[split_column]
+    #Continuous data 
     if type_of_feature == "continuous":
-        data_below = data[split_column_values <= split_value]
-        data_above = data[split_column_values >  split_value]
+        dBelow = data[split_column_values <= split_value]
+        dAbove = data[split_column_values >  split_value]
     
-    # feature is categorical   
+    #Categorical data  
     else:
-        data_below = data[split_column_values == split_value]
-        data_above = data[split_column_values != split_value]
+        dBelow = data[split_column_values == split_value]
+        dAbove = data[split_column_values != split_value]
     
-    return data_below, data_above
+    return dBelow, dAbove
 
-################## Entroyp ####################
-def calculate_entropy(data):
+"""# Lowest Overall Entropy"""
+
+def Entropy(data):
     label_column = data[:, -1]
     _, counts = np.unique(label_column, return_counts=True)
 
@@ -78,28 +93,26 @@ def calculate_entropy(data):
      
     return entropy
 
-################# Overall Entropy ##############
-def calculate_overall_entropy(data_below, data_above):
-    n = len(data_below) + len(data_above)
+def Overall_entropy(dBelow, dAbove):
+    n = len(dBelow) + len(dAbove)
     if n != 0:
-      p_data_below = len(data_below) / n
-      p_data_above = len(data_above) / n
+      p_dBelow = len(dBelow) / n
+      p_dAbove = len(dAbove) / n
     else:
-      p_data_below = 0
-      p_data_above = 0
+      p_dBelow = 0
+      p_dAbove = 0
 
-    overall_entropy =  (p_data_below * calculate_entropy(data_below) 
-                      + p_data_above * calculate_entropy(data_above))
+    overall_entropy =  (p_dBelow * Entropy(dBelow) 
+                      + p_dAbove * Entropy(dAbove))
+    
     return overall_entropy
 
-################# Best Split #################
-def determine_best_split(data, potential_splits):
-    
+def Best_split(data, potential_splits):
     overall_entropy = 9999
     for column_index in potential_splits:
         for value in potential_splits[column_index]:
-            data_below, data_above = split_data(data, split_column=column_index, split_value=value)
-            current_overall_entropy = calculate_overall_entropy(data_below, data_above)
+            dBelow, dAbove = Split(data, split_column=column_index, split_value=value)
+            current_overall_entropy = Overall_entropy(dBelow, dAbove)
 
             if current_overall_entropy <= overall_entropy:
                 overall_entropy = current_overall_entropy
@@ -108,75 +121,76 @@ def determine_best_split(data, potential_splits):
     
     return best_split_column, best_split_value
 
-################ Type Of Feature ###############
-def determine_type_of_feature(df):
+"""# Type of Feature"""
+
+def Type_of_Feature(dataFrame):
     feature_types = []
     n_unique_values_treshold = 15
-    for feature in df.columns:
+    for feature in dataFrame.columns:
         if feature != "label":
-            unique_values = df[feature].unique()
-            example_value = unique_values[0]
+            unique_values = dataFrame[feature].unique()
+            individual_value = unique_values[0]
 
-            if (isinstance(example_value, str)) or (len(unique_values) <= n_unique_values_treshold):
+            if (isinstance(individual_value, str)) or (len(unique_values) <= n_unique_values_treshold):
                 feature_types.append("categorical")
             else:
                 feature_types.append("continuous")
     
     return feature_types
 
-################# Tree Algorithm #################
-def decision_tree_algorithm(df, counter=0, min_samples=2, max_depth=5):
-    # data preparations
-    if counter == 0:
+"""# Algorithm"""
+
+def Decision_tree(dataFrame, contador=0, min_samples=2, max_depth=5):
+    #Preparation of data
+    if contador == 0:
         global COLUMN_HEADERS, FEATURE_TYPES
-        COLUMN_HEADERS = df.columns
-        FEATURE_TYPES = determine_type_of_feature(df)
-        data = df.values
+        COLUMN_HEADERS = dataFrame.columns
+        FEATURE_TYPES = Type_of_Feature(dataFrame)
+        data = dataFrame.values
     else:
-        data = df           
+        data = dataFrame           
         
-    var=check_purity(data)
+    var=Purity(data)
     #print("Hola: ",str(var))
-    # base cases
-    if (check_purity(data)) or (len(data) < min_samples) or (counter == max_depth):
-        classification = classify_data(data)
+    #Base cases
+    if (Purity(data)) or (len(data) < min_samples) or (contador == max_depth):
+        classification = Classify(data)
         return classification
 
     
     # recursive part
     else:    
-        counter += 1
+        contador += 1
 
-        # helper functions 
-        potential_splits = get_potential_splits(data)
-        split_column, split_value = determine_best_split(data, potential_splits)
-        data_below, data_above = split_data(data, split_column, split_value)
+        #Splits 
+        potential_splits = Potential_splits(data)
+        split_column, split_value = Best_split(data, potential_splits)
+        dBelow, dAbove = Split(data, split_column, split_value)
         
-        # check for empty data
-        if len(data_below) == 0 or len(data_above) == 0:
-            classification = classify_data(data)
+        #Analyse for empty data
+        if len(dBelow) == 0 or len(dAbove) == 0:
+            classification = Classify(data)
             return classification
         
-        # determine question
+        #Determine questions for categorical and continuous data
         feature_name = COLUMN_HEADERS[split_column]
         type_of_feature = FEATURE_TYPES[split_column]
+        #Continuous
         if type_of_feature == "continuous":
             question = "{} <= {}".format(feature_name, split_value)
             
-        # feature is categorical
+        #Categorical
         else:
             question = "{} = {}".format(feature_name, split_value)
         
-        # instantiate sub-tree
+        #Sub-tree
         sub_tree = {question: []}
         
-        # find answers (recursion)
-        yes_answer = decision_tree_algorithm(data_below, counter, min_samples, max_depth)
-        no_answer = decision_tree_algorithm(data_above, counter, min_samples, max_depth)
+        #Answers (recursion)
+        yes_answer = Decision_tree(dBelow, contador, min_samples, max_depth)
+        no_answer = Decision_tree(dAbove, contador, min_samples, max_depth)
         
         # If the answers are the same, then there is no point in asking the qestion.
-        # This could happen when the data is classified even though it is not pure
-        # yet (min_samples or max_depth base case).
         if yes_answer == no_answer:
             sub_tree = yes_answer
         else:
@@ -185,21 +199,22 @@ def decision_tree_algorithm(df, counter=0, min_samples=2, max_depth=5):
         
         return sub_tree
 
-############ Make Prediction ###############
-def classify_example(example, tree):
-    question = list(tree.keys())[0]
-    feature_name, comparison_operator, value = question.split(" ")
+"""# Classification"""
 
-    # ask question
-    if comparison_operator == "<=":  # feature is continuous
-        if example[feature_name] <= float(value):
+def Classify_individual(individual, tree):
+    question = list(tree.keys())[0]
+    feature_name, operator_comparision, value = question.split(" ")
+
+    #Ask question for continuous
+    if operator_comparision == "<=":
+        if individual[feature_name] <= float(value):
             answer = tree[question][0]
         else:
             answer = tree[question][1]
     
-    # feature is categorical
+    #Feature is categorical
     else:
-        if str(example[feature_name]) == value:
+        if str(individual[feature_name]) == value:
             answer = tree[question][0]
         else:
             answer = tree[question][1]
@@ -208,13 +223,14 @@ def classify_example(example, tree):
     if not isinstance(answer, dict):
         return answer
     
-    # recursive part
+    #Recursive
     else:
-        residual_tree = answer
-        return classify_example(example, residual_tree)
+        last_tree = answer
+        return Classify_individual(individual, last_tree)
 
-############ Accuracy ############
-def calculate_accuracy(df, tree):
+"""# Accuracy"""
+
+def Accuracy(dataFrame, tree):
     pprint(tree)
     #res = dict()
     #for sub in tree:
@@ -222,24 +238,99 @@ def calculate_accuracy(df, tree):
     # packing value list
     #  key, *val = sub.split()
     #  res[key] = val
-    df["classification"] = df.apply(classify_example, axis=1, args=(tree,))
-    df["classification_correct"] = df["classification"] == df["label"]
+    dataFrame["classification"] = dataFrame.apply(Classify_individual, axis=1, args=(tree,))
+    dataFrame["classification_correct"] = dataFrame["classification"] == dataFrame["label"]
     
-    accuracy = df["classification_correct"].mean()
+    accuracy = dataFrame["classification_correct"].mean()
     
     return accuracy
 
-################ MAIN #######################
-df = pd.read_csv("tratamientos.csv")
-df["label"] = df.Drug
-df = df.drop(["Drug"], axis=1)
+"""# Load and Prepare Data"""
+
+dataFrame = pd.read_csv("tratamientos.csv")
+dataFrame["label"] = dataFrame.Drug
+dataFrame = dataFrame.drop(["Drug"], axis=1)
+dataFrame.head()
+
+"""# Decision Tree"""
 
 random.seed()
 
-train_df, test_df = train_test_split(df, 0.2)
-tree = decision_tree_algorithm(train_df, max_depth=3)
-accuracy = calculate_accuracy(test_df, tree)
+train_dataFrame, test_dataFrame = Split_train_test(dataFrame, 20)
+individual = test_dataFrame.iloc[0]
+print(individual)
+tree = Decision_tree(train_dataFrame, max_depth=3)
+accuracy = Accuracy(test_dataFrame, tree)
 
 pprint(tree, width=50)
-test_df.head()
-accuracy
+test_dataFrame.head()
+print(accuracy)
+
+def main():
+    # load dataset
+    data = pd.read_csv("tratamientos.csv", delimiter=",")
+    X = data[['Age', 'Sex', 'BP', 'Cholesterol', 'Na_to_K']].values
+    y = data["Drug"]
+
+    le_sex = preprocessing.LabelEncoder()
+    le_sex.fit(['F','M'])
+    X[:,1] = le_sex.transform(X[:,1]) 
+
+    le_BP = preprocessing.LabelEncoder()
+    le_BP.fit([ 'LOW', 'NORMAL', 'HIGH'])
+    X[:,2] = le_BP.transform(X[:,2])
+
+    le_Chol = preprocessing.LabelEncoder()
+    le_Chol.fit([ 'NORMAL', 'HIGH'])
+    X[:,3] = le_Chol.transform(X[:,3]) 
+
+    x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=1)
+
+    #Create a Decision Tree Classifier Object
+    model = DecisionTreeClassifier()
+
+    #Train the Tree
+    model = model.fit(x_train,y_train)
+
+    #Predict the response for the dataset
+    y_pred = model.predict(x_test)
+
+    #Accuracy using metrics
+    acc1 = metrics.accuracy_score(y_test,y_pred)*100
+    print("Accuracy of the model is " + str(acc1))
+
+    #Classification Report
+    report = classification_report(y_test, y_pred)
+    print(report)
+
+    #Plotting of the tree
+    features = ['Age', 'Sex', 'BP', 'Cholesterol', 'Na_to_K']
+    dot_data = StringIO()
+    export_graphviz(model, out_file=dot_data, filled=True, rounded=True, special_characters=True, feature_names=features, class_names=['0','1','2','3','4'])
+    graph = pydotplus.graph_from_dot_data(dot_data.getvalue())
+    #graph.write_png('tratamiento_set_1.png') #Save the imahe
+    #Image(graph.create_png())
+
+    # Create Decision Tree classifer object
+    model = DecisionTreeClassifier(criterion="entropy", max_depth=3)
+
+    # Train Decision Tree Classifer
+    model = model.fit(x_train,y_train)
+
+    #Predict the response for test dataset
+    y_pred = model.predict(x_test)
+
+    print(x_test)
+    print("Prefictions of the model: " + str(y_pred))
+
+    # Model Accuracy
+    print("Accuracy:",metrics.accuracy_score(y_test, y_pred)*100)
+
+    #Better Decision Tree Visualisation
+    dot_data = StringIO()
+    export_graphviz(model, out_file=dot_data,filled=True, rounded=True,special_characters=True, feature_names = features,class_names=['0','1','2','3','4'])
+    graph = pydotplus.graph_from_dot_data(dot_data.getvalue())  
+    #graph.write_png('tratamiento_set_2.png') #Save de image
+    #Image(graph.create_png())
+
+if __name__ == "__main__"
