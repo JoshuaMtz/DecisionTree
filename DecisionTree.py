@@ -333,4 +333,5 @@ def main():
     #graph.write_png('tratamiento_set_2.png') #Save de image
     #Image(graph.create_png())
 
-if __name__ == "__main__"
+if __name__ == "__main__":
+    main()
